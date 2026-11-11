@@ -158,11 +158,31 @@ Server:
 
 ```bash
 $ docker run hello-world
-(TODO: 실행 후 출력된 "Hello from Docker!" 메시지를 여기에 붙여넣기)
+
+Hello from Docker!
+This message shows that your installation appears to be working correctly.
+
+To generate this message, Docker took the following steps:
+ 1. The Docker client contacted the Docker daemon.
+ 2. The Docker daemon pulled the "hello-world" image from the Docker Hub.
+    (amd64)
+ 3. The Docker daemon created a new container from that image which runs the
+    executable that produces the output you are currently reading.
+ 4. The Docker daemon streamed that output to the Docker client, which sent it
+    to your terminal.
+
+To try something more ambitious, you can run an Ubuntu container with:
+ $ docker run -it ubuntu bash
+
+Share images, automate workflows, and more with a free Docker ID:
+ https://hub.docker.com/
+
+For more help on how to use Docker, go to:
+ https://docs.docker.com/get-started/
 
 $ docker run -it --name ubuntu-test ubuntu bash
 root@<container-id>:/# ls
-(TODO: ls 출력 붙여넣기)
+bin  boot  dev  etc  home  lib  lib32  lib64  libx32  media  mnt  opt  proc  root  run  sbin  srv  sys  tmp  usr  var
 root@<container-id>:/# echo "inside container"
 inside container
 root@<container-id>:/# exit
@@ -211,7 +231,7 @@ c7168dd9950b   hello-world   "/hello"           Exited (0) 2 hours ago      focu
 | `docker exec -it ... bash` 후 `exit` | 새로 만든 프로세스만 종료됨. 메인 프로세스(`sleep`)는 그대로 | 컨테이너 유지 (`Up`) |
 | `docker attach` | 메인 프로세스에 직접 연결됨 | `-it`로 만든 컨테이너는 Ctrl+P, Ctrl+Q로 분리해 유지 가능 |
 
-`docker stop` 후 `Exited (137)`은 PID 1인 `sleep`이 종료 신호(SIGTERM)를 무시해 일정 시간 뒤 강제 종료(SIGKILL)되었기 때문입니다.
+`docker stop` 후 `Exited (137)`은 SIGKILL(128+9=137)로 강제 종료되었음을 의미합니다. SIGTERM 무시 여부는 이 로그만으로 확정할 수 없으며, `docker stop`의 기본 대기 시간(10초) 안에 프로세스가 종료되지 않아 SIGKILL이 발송된 것으로 추정됩니다.
 
 ### 4-6. Dockerfile 기반 커스텀 이미지 (방식 A: nginx)
 
@@ -319,6 +339,8 @@ $ curl http://localhost:8080
 
 - 바인드 마운트: 호스트 폴더를 컨테이너와 실시간 공유합니다. 호스트에서 고치면 바로 반영됩니다.
 - `COPY`: 빌드 시점의 내용이 이미지에 고정됩니다. 바꾸려면 이미지를 다시 빌드해야 합니다.
+
+> **현재 파일 상태**: 이 실습 후 `site/index.html`은 v2(`Hello v2 (bind mount)`) 상태입니다. `my-web:1.0` 이미지는 빌드 당시 v1이 복사된 상태로 고정되어 있으며, 현재 파일과 무관합니다. 재현 시 `docker build`를 다시 실행하면 현재 v2 내용이 이미지에 들어갑니다.
 
 ### 4-8. Docker 볼륨 영속성
 

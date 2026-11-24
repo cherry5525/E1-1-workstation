@@ -1,5 +1,7 @@
 # E1-1 내 컴퓨터에 개발자용 '작업실' 꾸미기
 
+[GitHub 저장소](https://github.com/cherry5525/E1-1-workstation)
+
 ## 1) 프로젝트 개요
 
 터미널(리눅스 CLI), Docker, Git/GitHub를 직접 세팅하고, 실행 결과(로그/접속/데이터 유지)로 동작을 검증한 개발 워크스테이션 구축 기록입니다.
@@ -193,8 +195,8 @@ root@<container-id>:/# exit
 ```bash
 $ docker run -dit --name ubuntu-bg ubuntu sleep infinity
 $ docker ps
-CONTAINER ID   IMAGE    COMMAND            CREATED          STATUS          NAMES
-a944dd33b9c0   ubuntu   "sleep infinity"   About a minute   Up About a minute   ubuntu-bg
+CONTAINER ID   IMAGE    COMMAND            CREATED          STATUS                  NAMES
+a944dd33b9c0   ubuntu   "sleep infinity"   About a minute   Up About a minute       ubuntu-bg
 
 $ docker exec -it ubuntu-bg bash
 root@a944dd33b9c0:/# exit
@@ -203,14 +205,16 @@ $ docker attach ubuntu-bg
 (Ctrl+P, Ctrl+Q 입력)
 read escape sequence
 $ docker ps
-CONTAINER ID   IMAGE    COMMAND            CREATED     STATUS       NAMES
+CONTAINER ID   IMAGE    COMMAND            CREATED         STATUS         NAMES
 a944dd33b9c0   ubuntu   "sleep infinity"   2 minutes ago   Up 2 minutes   ubuntu-bg
 ```
 
+아래는 `ubuntu-bg`가 **실행 중(Up)인 상태에서** 조회한 결과이며, 이후 `docker stop`으로 종료했습니다.
+
 ```bash
-$ docker logs ubuntu-bg
+$ docker logs ubuntu-bg      # 실행 중 조회
 (출력 없음: sleep은 로그를 내지 않음)
-$ docker stats --no-stream
+$ docker stats --no-stream   # 실행 중 조회 (stop 이전)
 CONTAINER ID   NAME        CPU %   MEM USAGE / LIMIT     MEM %   NET I/O         BLOCK I/O     PIDS
 a944dd33b9c0   ubuntu-bg   0.00%   3.941MiB / 15.25GiB   0.03%   1.17kB / 126B   0B / 4.1kB    1
 $ docker stop ubuntu-bg
@@ -231,7 +235,9 @@ c7168dd9950b   hello-world   "/hello"           Exited (0) 2 hours ago      focu
 | `docker exec -it ... bash` 후 `exit` | 새로 만든 프로세스만 종료됨. 메인 프로세스(`sleep`)는 그대로 | 컨테이너 유지 (`Up`) |
 | `docker attach` | 메인 프로세스에 직접 연결됨 | `-it`로 만든 컨테이너는 Ctrl+P, Ctrl+Q로 분리해 유지 가능 |
 
-`docker stop` 후 `Exited (137)`은 SIGKILL(128+9=137)로 강제 종료되었음을 의미합니다. SIGTERM 무시 여부는 이 로그만으로 확정할 수 없으며, `docker stop`의 기본 대기 시간(10초) 안에 프로세스가 종료되지 않아 SIGKILL이 발송된 것으로 추정됩니다.
+**관찰 결과**: `docker stop ubuntu-bg` 후 `docker ps -a`에서 종료 코드 `Exited (137)`을 확인했습니다. 137은 128+9, 즉 SIGKILL로 종료되었다는 표기입니다.
+
+**원인 추정(미확정)**: 이 로그만으로는 실제 종료 과정(SIGTERM 전달 여부, 대기 시간)을 확인할 수 없어 원인을 확정하지 못합니다. 컨테이너의 PID 1인 `sleep`이 SIGTERM을 처리하지 않아 `docker stop` 기본 대기 시간(10초) 후 SIGKILL이 보내졌을 가능성이 있다고 추정할 뿐입니다.
 
 ### 4-6. Dockerfile 기반 커스텀 이미지 (방식 A: nginx)
 
@@ -396,10 +402,14 @@ $ git config --global user.name "cherry5525"
 $ git config --global user.email "****@users.noreply.github.com"
 $ git config --global init.defaultBranch main
 $ git config --list
+...
 user.name=cherry5525
 user.email=****@users.noreply.github.com
 init.defaultbranch=main
+...
 ```
+
+> `git config --list`에는 이 외에 `core.*`, `remote.origin.*` 등 다른 항목도 출력되며, 설정과 무관한 줄은 `...`로 생략했습니다. 설정한 3개 값(`user.name`, `user.email`, `init.defaultbranch`)만 발췌했습니다.
 
 > 이메일은 GitHub의 noreply 주소를 사용해 커밋 기록에 실제 이메일이 노출되지 않게 했습니다.
 
@@ -504,6 +514,44 @@ fa46d39 (HEAD -> main, origin/main) Add Dockerfile and site
 | 확인 | 경로가 내가 연 WSL 프로젝트 폴더임을 확인 |
 | 해결 | 확인창에서 Allow 선택, 필요 시 작업 관리자에서 Code 프로세스를 종료한 뒤 `code .` 재실행 |
 
+### 가장 어려웠던 지점: 5-2 attach 후 빠져나오지 못함
+
+`docker attach` 후 컨테이너에서 빠져나오지 못한 문제가 가장 어려웠습니다. 증상이 "키가 안 먹는다"뿐이라 원인이 어디인지 바로 구분되지 않았기 때문입니다.
+
+| 단계 | 내용 |
+|---|---|
+| 가설 1 | Windows 터미널이 분리 키(Ctrl+P, Ctrl+Q)를 가로채거나 다르게 처리한다 |
+| 확인 1 | `--detach-keys="ctrl-x"`로 키를 바꿔도 같은 증상 → 가설 1 기각 |
+| 가설 2 | 키 입력 자체가 컨테이너에 전달되지 않는다 (컨테이너 생성 방식 문제) |
+| 확인 2 | 입력한 키가 `^X`, `^P` 글자로만 화면에 출력됨. 컨테이너를 `-it` 없이 `docker run -d`로 만들었음 → TTY/stdin이 없어 키 입력이 전달되지 않는 것으로 판단 |
+| 조치 | 컨테이너를 삭제하고 `docker run -dit`로 재생성 → Ctrl+P, Ctrl+Q로 `read escape sequence`와 함께 분리, 컨테이너 `Up` 유지 |
+
+배운 점: 컨테이너의 상호작용 가능 여부는 실행 시점의 `-i`/`-t` 옵션으로 결정되며, 나중에 `attach`로 바꿀 수 없습니다. 처음 가설(터미널 문제)이 틀렸을 때, 변수를 하나씩 바꿔 가며 가설을 기각한 과정이 해결의 핵심이었습니다.
+
+## 5-B) 보너스 과제: GitHub SSH 키
+
+### GitHub SSH 키
+
+```bash
+$ ssh-keygen -t ed25519 -C "****@users.noreply.github.com"
+$ cat ~/.ssh/id_ed25519.pub      # 공개키(.pub)만 GitHub > Settings > SSH keys에 등록
+$ ssh -T git@github.com
+Hi cherry5525! You've successfully authenticated, but GitHub does not provide shell access.
+$ git remote set-url origin git@github.com:cherry5525/E1-1-workstation.git
+$ git push
+```
+
+**SSH 키 등록 및 인증 성공 증거** (VSCode PowerShell 터미널에서 수행)
+
+![SSH 키 등록 및 인증 성공](docs/images/ssh.png)
+
+- `cat ...id_ed25519.pub`: 등록한 **공개키**(`.pub`)만 출력했습니다.
+- `ssh-add`: 키를 ssh-agent에 추가했습니다(`Identity added`).
+- `ssh -T git@github.com`: `Hi cherry5525! You've successfully authenticated, but GitHub does not provide shell access.`로 SSH 인증 성공을 확인했습니다.
+- 스크린샷의 이메일 부분은 마스킹했고, 개인키는 노출하지 않았습니다.
+
+주의: 개인키(`id_ed25519`)는 절대 올리거나 캡처하지 않습니다. HTTPS(토큰)와 달리 SSH는 키 쌍으로 인증하므로 토큰 만료/노출 위험이 줄어듭니다.
+
 ## 6) 개념 정리
 
 **절대 경로와 상대 경로**
@@ -520,6 +568,30 @@ fa46d39 (HEAD -> main, origin/main) Add Dockerfile and site
 
 **Docker 볼륨**: 컨테이너와 별도로 Docker가 관리하는 저장소입니다. 컨테이너를 삭제해도 데이터가 남아 영속 데이터(DB 등)에 사용합니다. (4-8 참고)
 
+**컨테이너 삭제 후 데이터 손실을 막는 방법**
+1. 유지해야 할 데이터는 컨테이너 파일시스템이 아니라 **named volume**(`-v mydata:/data`)에 저장합니다. 컨테이너 내부에만 쓴 데이터는 `docker rm` 시 함께 사라집니다.
+2. 컨테이너를 지울 때 **볼륨까지 지우지 않도록 주의**합니다. `docker rm -v`, `docker compose down -v`, `docker volume rm`, `docker volume prune`은 볼륨을 삭제합니다. 컨테이너만 지울 때는 `docker rm -f 이름`처럼 `-v` 없이 실행하고, 지우기 전에 `docker volume ls`로 볼륨 이름을 확인합니다.
+3. 중요한 데이터는 **별도로 백업**합니다. 볼륨 자체도 `docker volume rm`이나 디스크 장애로 사라질 수 있습니다.
+   ```bash
+   $ docker run --rm -v mydata:/data -v "$(pwd)":/backup ubuntu tar czf /backup/mydata.tgz -C /data .
+   ```
+
+**호스트 포트가 이미 사용 중일 때 진단 순서**
+
+증상: `docker run -p 8080:80 ...` 실패, `Bind for 0.0.0.0:8080 failed: port is already allocated` 또는 `address already in use`
+
+1. **Docker 컨테이너가 점유 중인지 확인**: `docker ps` 의 PORTS 열에서 `0.0.0.0:8080->80/tcp`인 컨테이너를 찾습니다. (정지된 컨테이너는 포트를 점유하지 않으므로 `docker ps -a`는 이름 중복 확인용입니다.)
+2. **컨테이너가 아니라면 OS 프로세스가 점유 중인지 확인**
+   ```bash
+   # Linux / WSL
+   $ ss -ltnp | grep :8080
+   # Windows PowerShell
+   > netstat -ano | findstr :8080
+   > tasklist /FI "PID eq <PID>"
+   ```
+3. **조치**: 점유한 것이 내가 띄운 불필요한 컨테이너면 `docker rm -f <이름>`, 불필요한 프로세스면 종료합니다. 종료하면 안 되는 프로세스면 **다른 호스트 포트**로 실행합니다. (`-p 8082:80`: 컨테이너 포트 80은 그대로 두고 호스트 포트만 바꿉니다.)
+4. 재실행 후 `docker ps`로 매핑을 확인하고 `curl http://localhost:<포트>`로 접속을 검증합니다.
+
 **Git과 GitHub의 차이**: Git은 내 컴퓨터에서 변경 이력을 관리하는 로컬 버전 관리 도구이고, GitHub는 Git 저장소를 원격에 올려 공유/협업하는 플랫폼입니다.
 
 ## 7) 재현 방법
@@ -532,6 +604,7 @@ docker run -d -p 8080:80 --name my-web-8080 my-web:1.0
 curl http://localhost:8080
 ```
 
+- 현재 `site/index.html`은 4-7 실습 결과인 v2 상태이므로, 위 절차로 빌드하면 `Hello v2 (bind mount)`가 응답됩니다. (4-6의 v1 화면은 당시 빌드 결과입니다.)
 - 경로(`/home/<user>`, `~/codyssey/...`)는 개인 환경에 맞게 바꿔 사용합니다.
 - Windows에서는 Docker Desktop(WSL 2) + Ubuntu(WSL) 환경에서 실행합니다. 작업 폴더는 `/mnt/c`가 아닌 리눅스 홈 아래에 두어야 권한 실습과 바인드 마운트가 정상 동작합니다.
-- 포트(8080 등)가 이미 사용 중이면 다른 호스트 포트를 사용합니다.
+- 포트(8080 등)가 이미 사용 중이면 6) 개념 정리의 "호스트 포트가 이미 사용 중일 때 진단 순서"를 따라 점유 원인을 확인한 뒤, 다른 호스트 포트를 사용합니다.
